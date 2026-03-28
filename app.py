@@ -1,79 +1,165 @@
-import streamlit as st
-from io import BytesIO
 import google.generativeai as genai
+from dotenv import load_dotenv
+import os
+from PIL import Image
+import streamlit as st
 
-# --- Your API key here ---
-GENAI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
-genai.configure(api_key=GENAI_API_KEY)
+load_dotenv()
 
-# --- Page Config ---
-st.set_page_config(page_title="Image Analyzer", layout="wide")
+gemini_api_key = os.getenv("API_KEY")
+genai.configure(api_key=gemini_api_key)
 
-# --- Background & header styling ---
-st.markdown("""
+st.markdown(
+    """
     <style>
     .stApp {
-        background-image: url('https://images.unsplash.com/photo-1612831661897-3f52d9f24d6c');
-        background-size: cover;
-        background-position: center;
+        background: linear-gradient(to right, #e3f2fd, #ffffff);
+    }
+
+    h1, h2, h3 {
+        color: #0d47a1;
+        text-align: center;
+    }
+
+    .stButton>button {
+        background-color: #1976d2;
         color: white;
+        border-radius: 8px;
+        height: 3em;
+        width: 100%;
+        font-size: 16px;
     }
-    .card {
-        background-color: rgba(0,0,0,0.6);
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-    }
-    .card img {
-        border-radius: 10px;
-    }
-    h1, h2, h3, p {
-        color: white;
+
+    .stTextInput>div>div>input {
+        background-color: #f5f5f5;
     }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
-st.markdown("<h1 style='text-align:center;'>🖼️ Professional Image Q&A</h1>", unsafe_allow_html=True)
+st.title("AI Image Analytics App")
 
-# --- Upload section ---
-uploaded_file = st.file_uploader("Upload your image", type=["png","jpg","jpeg"])
-prompt = st.text_input("Ask a question about the image:")
+counter_file = "counter.txt"
 
-# --- Session history ---
+if not os.path.exists(counter_file):
+    with open(counter_file, "w") as f:
+        f.write("0")
+
+with open(counter_file, "r") as f:
+    count = int(f.read())
+
+count += 1
+
+with open(counter_file, "w") as f:
+    f.write(str(count))
+
+st.write("Users visited:", count)
+
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# --- Analyze Button ---
-if st.button("Analyze"):
-    if not uploaded_file or not prompt:
-        st.warning("Please upload an image and enter a question.")
+uploaded_file = st.file_uploader(
+    "Upload an image",
+    type=["png", "jpg", "jpeg"]
+)
+
+st.markdown("""
+<style>
+
+.stApp {
+    background-image: url("https://images.unsplash.com/photo-1677442136019-21780ecad995");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+/* dark transparent overlay */
+.stApp::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    z-index: -1;
+}
+
+/* text styling */
+h1, h2, h3, h4, h5, h6, p, label {
+    color: white !important;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* upload box style */
+[data-testid="stFileUploader"] {
+    background-color: rgba(255,255,255,0.1);
+    padding: 15px;
+    border-radius: 12px;
+}
+
+/* button style */
+.stButton>button {
+    background-color: #007BFF;
+    color: white;
+    border-radius: 8px;
+    height: 45px;
+    width: 200px;
+    font-size: 16px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- UI ----------------
+st.title("AI Image Analyzer")
+st.write("Upload an image and get AI-powered description")
+
+st.success(f"Total Users Visited: {count}")
+
+
+
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", width=400)
+
+prompt = st.text_input(
+    "Enter your prompt",
+    placeholder="Example: Describe this image in simple English"
+)
+
+if st.button("GET RESPONSE"):
+
+    if uploaded_file is not None and prompt:
+
+        img = Image.open(uploaded_file)
+
+        model = genai.GenerativeModel("gemini-2.5-flash")
+
+        response = model.generate_content([prompt, img])
+
+        st.subheader("AI Description")
+
+        st.write(response.text)
+
+        st.session_state.history.append((prompt, response.text))
+
     else:
-        img_bytes = uploaded_file.read()
-        parts = [
-            prompt,
-            {"mime_type": uploaded_file.type, "data": img_bytes}
-        ]
-        try:
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            response = model.generate_content(parts)
-            answer = response[0].content[0].text
+        st.warning("Please upload image and enter prompt")
 
-            st.session_state.history.append({
-                "prompt": prompt,
-                "image_bytes": img_bytes,
-                "answer": answer
-            })
-        except Exception as e:
-            st.error(f"API error: {e}")
+st.subheader("Previous Results")
 
-# --- Display History in cards ---
-st.markdown("## History")
-for item in reversed(st.session_state.history):
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown(f"**Q:** {item['prompt']}")
-    st.image(item["image_bytes"], width=300)
-    st.markdown(f"**A:** {item['answer']}")
-    st.markdown("</div>", unsafe_allow_html=True)
+if len(st.session_state.history) == 0:
+    st.write("No history yet")
 
-# --- Footer ---
-st.markdown(f"<p style='text-align:center;'>Total queries this session: {len(st.session_state.history)}</p>", unsafe_allow_html=True)
+for q, a in reversed(st.session_state.history):
+
+    st.markdown(f"""
+    Question: {q}
+
+    Answer: {a}
+    
+    ---
+    """)
