@@ -5,7 +5,7 @@ import google.generativeai as genai
 
 # ---------------- API KEY CONFIG ----------------
 # Read API key from environment variable
-GENAI_API_KEY = os.getenv("GENAI_API_KEY")
+GENAI_API_KEY = os.getenv("AIzaSyDKIDzdr9oyeKVk-bz690hlJxPsD11WNzs")
 if not GENAI_API_KEY:
     st.error("API key not set! Please add GENAI_API_KEY in environment variables.")
     st.stop()
